@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quest Mirror — Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+    }
+    #videoContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+    /* HUD overlay */
+    #hud {
+      position: absolute;
+      top: 16px; left: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #questLabel {
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 1rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      letter-spacing: 0.5px;
+    }
+    /* Timer bar */
+    #timerBarWrap {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      z-index: 10;
+    }
+    #timerBar {
+      height: 100%;
+      background: linear-gradient(90deg, #3a5fff, #7c9fff);
+      width: 100%;
+      transition: none;
+    }
+    /* Waiting screen */
+    #waitingScreen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #050510;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      z-index: 20;
+      gap: 20px;
+    }
+    #waitingScreen h2 { font-size: 1.6rem; color: #7c9fff; }
+    #waitingScreen p  { font-size: 1rem; color: #666; }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid #1e1e3a;
+      border-top-color: #3a5fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Dots: active senders */
+    #senderDots {
+      position: absolute;
+      bottom: 14px; right: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .sdot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      transition: background 0.3s;
+    }
+    .sdot.active { background: #4cff72; box-shadow: 0 0 8px #4cff72; }
+    /* Transition flash */
+    #flash {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      opacity: 0;
+      z-index: 15;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+  </style>
+</head>
+<body>
+
+<div id="videoContainer">
+  <video id="mainVideo" autoplay playsinline></video>
+
+  <div id="hud">
+    <div id="questLabel">📡 Aguardando...</div>
+  </div>
+
+  <div id="timerBarWrap">
+    <div id="timerBar"></div>
+  </div>
+
+  <div id="senderDots"></div>
+  <div id="flash"></div>
+
+  <div id="waitingScreen">
+    <div class="spinner"></div>
+    <h2>Quest Mirror</h2>
+    <p>Aguardando conexão dos dispositivos...</p>
+    <p id="waitInfo" style="font-size:0.8rem;color:#444;"></p>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  if (window.location.port !== '3000' && window.location.port !== '') {
+    document.body.innerHTML = `
+      <div style="background:#050510;color:#e0e0e0;font-family:monospace;padding:40px;height:100vh;
+                  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+        <h2 style="color:#ffd04c;">⚠️ Porta errada! (${window.location.port})</h2>
+        <p style="color:#aaa;text-align:center;">Acesse pelo endereço correto do servidor Node:</p>
+        <a href="http://${window.location.hostname}:3000/viewer.html"
+           style="color:#4cff72;font-size:1.1rem;">
+          http://${window.location.hostname}:3000/viewer.html
+        </a>
+        <p style="color:#555;font-size:0.85rem;">Execute <b style="color:#aaa">start.bat</b> ou <b style="color:#aaa">node server.js</b> primeiro.</p>
+      </div>`;
+    throw new Error('Aberto fora do servidor Node.');
+  }
+
+  const SWITCH_INTERVAL = 10000; // 10 segundos
+
+  const socket = io();
+  const mainVideo = document.getElementById('mainVideo');
+  const questLabel = document.getElementById('questLabel');
+  const timerBar   = document.getElementById('timerBar');
+  const waitingScreen = document.getElementById('waitingScreen');
+  const senderDotsEl  = document.getElementById('senderDots');
+  const flashEl = document.getElementById('flash');
+
+  // Estado
+  let senders = [];           // [{ socketId, questId }]
+  let currentIndex = 0;       // índice atual em senders[]
+  let peerConnections = {};   // socketId → RTCPeerConnection
+  let remoteStreams = {};      // socketId → MediaStream
+  let switchTimer = null;
+  let timerBarAnim = null;
+
+  const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // ── Registro ────────────────────────────────────────────────────
+  socket.emit('register-viewer');
+
+  // ── Lista de senders atualizada ─────────────────────────────────
+  socket.on('sender-list', (list) => {
+    senders = list;
+    updateDots();
+    if (senders.length > 0) {
+      waitingScreen.style.display = 'none';
+      // Conecta a todos os senders ainda não conectados
+      senders.forEach(s => {
+        if (!peerConnections[s.socketId]) {
+          requestOffer(s.socketId);
+        }
+      });
+      // Se não está exibindo nada válido, começa
+      if (!isCurrentValid()) switchTo(0);
+    } else {
+      waitingScreen.style.display = 'flex';
+      stopSwitchCycle();
+    }
+  });
+
+  // ── Sender desconectou ───────────────────────────────────────────
+  socket.on('sender-disconnected', ({ senderSocketId }) => {
+    if (peerConnections[senderSocketId]) {
+      peerConnections[senderSocketId].close();
+      delete peerConnections[senderSocketId];
+    }
+    delete remoteStreams[senderSocketId];
+
+    // Remove da lista local (o sender-list atualizado virá do server)
+    senders = senders.filter(s => s.socketId !== senderSocketId);
+    updateDots();
+
+    if (senders.length === 0) {
+      mainVideo.srcObject = null;
+      questLabel.textContent = '📡 Aguardando...';
+      waitingScreen.style.display = 'flex';
+      stopSwitchCycle();
+    } else {
+      if (!isCurrentValid()) switchTo(0);
+    }
+  });
+
+  // ── WebRTC: recebe offer do Quest (via server) ───────────────────
+  socket.on('webrtc-offer', async ({ questId, offer, senderSocketId }) => {
+    let pc = peerConnections[senderSocketId];
+    if (!pc) pc = createPeer(senderSocketId, questId);
+
+    if (pc.signalingState !== 'stable') {
+      console.warn('PC not stable, ignoring offer');
+      return;
+    }
+
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('webrtc-answer', { senderSocketId, answer, viewerSocketId: socket.id });
+  });
+
+  // ── ICE candidates do Quest ─────────────────────────────────────
+  socket.on('ice-candidate-sender', async ({ candidate, senderSocketId }) => {
+    const pc = peerConnections[senderSocketId];
+    if (pc && candidate) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
+    }
+  });
+
+  // ── Criar peer para um sender ───────────────────────────────────
+  function createPeer(senderSocketId, questId) {
+    const pc = new RTCPeerConnection(iceConfig);
+    peerConnections[senderSocketId] = pc;
+
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate) {
+        socket.emit('ice-candidate-viewer', { senderSocketId, candidate, viewerSocketId: socket.id });
+      }
+    };
+
+    pc.ontrack = ({ streams }) => {
+      remoteStreams[senderSocketId] = streams[0];
+      console.log(`Stream recebido do Quest ${questId}`);
+      // Se é o atual, exibe imediatamente
+      if (senders[currentIndex]?.socketId === senderSocketId) {
+        showStream(senderSocketId);
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`Quest${questId} peer: ${pc.connectionState}`);
+    };
+
+    return pc;
+  }
+
+  function requestOffer(senderSocketId) {
+    // Pede ao server para notificar o sender que o viewer quer uma offer
+    socket.emit('request-offer-from-viewer', { senderSocketId, viewerSocketId: socket.id });
+  }
+
+  // ── Exibir stream de um sender ──────────────────────────────────
+  function showStream(senderSocketId) {
+    const stream = remoteStreams[senderSocketId];
+    if (!stream) return;
+    mainVideo.srcObject = stream;
+    const sender = senders.find(s => s.socketId === senderSocketId);
+    if (sender) questLabel.textContent = `🥽 Quest ${sender.questId}`;
+  }
+
+  // ── Trocar para índice ──────────────────────────────────────────
+  function switchTo(index) {
+    if (senders.length === 0) return;
+    currentIndex = ((index % senders.length) + senders.length) % senders.length;
+    const target = senders[currentIndex];
+    flashTransition(() => showStream(target.socketId));
+    updateDots();
+    restartTimerBar();
+  }
+
+  function isCurrentValid() {
+    return senders.length > 0 && senders[currentIndex] &&
+           remoteStreams[senders[currentIndex].socketId];
+  }
+
+  // ── Ciclo automático ────────────────────────────────────────────
+  function startSwitchCycle() {
+    stopSwitchCycle();
+    switchTimer = setInterval(() => {
+      if (senders.length > 1) switchTo(currentIndex + 1);
+    }, SWITCH_INTERVAL);
+  }
+
+  function stopSwitchCycle() {
+    if (switchTimer) { clearInterval(switchTimer); switchTimer = null; }
+    if (timerBarAnim) { cancelAnimationFrame(timerBarAnim); timerBarAnim = null; }
+    timerBar.style.width = '100%';
+  }
+
+  function restartTimerBar() {
+    if (timerBarAnim) cancelAnimationFrame(timerBarAnim);
+    const start = performance.now();
+    function frame(now) {
+      const elapsed = now - start;
+      const pct = Math.max(0, 100 - (elapsed / SWITCH_INTERVAL) * 100);
+      timerBar.style.width = pct + '%';
+      if (elapsed < SWITCH_INTERVAL) timerBarAnim = requestAnimationFrame(frame);
+    }
+    timerBarAnim = requestAnimationFrame(frame);
+  }
+
+  // Inicia ciclo quando tiver ao menos 1 stream disponível
+  const cycleWatcher = setInterval(() => {
+    if (senders.length > 0 && isCurrentValid() && !switchTimer) {
+      startSwitchCycle();
+      restartTimerBar();
+      clearInterval(cycleWatcher);
+    }
+  }, 500);
+
+  // ── Dots indicadores ────────────────────────────────────────────
+  function updateDots() {
+    senderDotsEl.innerHTML = '';
+    senders.forEach((s, i) => {
+      const d = document.createElement('div');
+      d.className = 'sdot' + (i === currentIndex ? ' active' : '');
+      senderDotsEl.appendChild(d);
+    });
+  }
+
+  // ── Flash de transição ──────────────────────────────────────────
+  function flashTransition(callback) {
+    flashEl.style.opacity = '0.15';
+    setTimeout(() => {
+      callback();
+      flashEl.style.opacity = '0';
+    }, 150);
+  }
+</script>
+</body>
+</html>

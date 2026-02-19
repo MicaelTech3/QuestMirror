@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quest Sender</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f; color: #e0e0e0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; gap: 20px; padding: 20px;
+    }
+    h1 { font-size: 1.4rem; color: #7c9fff; letter-spacing: 1px; }
+    #status-box {
+      background: #12121a; border: 1px solid #2a2a3d;
+      border-radius: 12px; padding: 20px 30px;
+      text-align: center; width: 100%; max-width: 460px;
+    }
+    #status { font-size: 1rem; margin-bottom: 12px; min-height: 24px; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: #555; }
+    .dot.green  { background: #4cff72; box-shadow: 0 0 8px #4cff72; }
+    .dot.yellow { background: #ffd04c; box-shadow: 0 0 8px #ffd04c; }
+    .dot.red    { background: #ff4c4c; box-shadow: 0 0 8px #ff4c4c; }
+    #qi { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 16px; }
+    label { font-size: 0.9rem; color: #aaa; }
+    select { background: #1e1e2e; color: #e0e0e0; border: 1px solid #3a3a5c; border-radius: 8px; padding: 6px 12px; font-size: 1rem; }
+    button { background: #3a5fff; color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #5a7fff; }
+    button:disabled { background: #2a2a3d; color: #555; cursor: default; }
+    #vc { font-size: 0.85rem; color: #777; margin-top: 8px; }
+    video { width: 100%; max-width: 460px; border-radius: 10px; border: 1px solid #2a2a3d; background: #000; display: none; }
+    #log { width: 100%; max-width: 460px; background: #0d0d15; border: 1px solid #1e1e2e; border-radius: 8px; padding: 10px; font-size: 0.75rem; color: #666; max-height: 150px; overflow-y: auto; font-family: monospace; }
+
+    /* Alerta de contexto inseguro */
+    #insecure-warn {
+      display: none;
+      background: #1a0a00; border: 1px solid #ff6a00;
+      border-radius: 12px; padding: 18px 24px;
+      width: 100%; max-width: 460px; text-align: left;
+    }
+    #insecure-warn h3 { color: #ff9a3c; margin-bottom: 10px; font-size: 1rem; }
+    #insecure-warn p  { color: #ccc; font-size: 0.85rem; line-height: 1.6; margin-bottom: 8px; }
+    #insecure-warn code {
+      background: #0d0d15; color: #4cff72;
+      padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;
+    }
+    #insecure-warn ol { color: #ccc; font-size: 0.85rem; line-height: 1.8; padding-left: 18px; }
+    #insecure-warn .tag { display: inline-block; background: #ff6a0022; color: #ff9a3c; border: 1px solid #ff6a0055; border-radius: 4px; padding: 1px 7px; font-size: 0.78rem; margin-bottom: 8px; }
+
+    /* Tela de erro abertura fora do Node */
+    #err { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 20px; text-align: center; }
+    #err h2 { color: #ffd04c; font-size: 1.3rem; }
+    #err .box { background: #12121a; border: 1px solid #3a3a5c; border-radius: 10px; padding: 20px 30px; }
+    #err a { color: #4cff72; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+
+<!-- Tela: aberto fora do Node -->
+<div id="err">
+  <h2>⚠️ Aberto sem servidor Node!</h2>
+  <p style="color:#aaa">Abra pelo endereço correto, não pelo VS Code nem direto do disco.</p>
+  <div class="box">
+    <p style="color:#7c9fff;margin-bottom:10px;">Siga estes passos:</p>
+    <p style="color:#aaa;margin-bottom:4px;">1. Dê double-click em <b style="color:#fff">start.bat</b></p>
+    <p style="color:#aaa;margin-bottom:4px;">2. Veja o IP no terminal</p>
+    <p style="color:#aaa;margin-bottom:14px;">3. Abra este endereço no browser:</p>
+    <a id="lnk" href="#">http://SEU_IP:3000/sender.html</a>
+  </div>
+</div>
+
+<!-- App principal -->
+<div id="app">
+  <h1>🥽 Quest Mirror — Sender</h1>
+
+  <!-- Aviso contexto inseguro (HTTP + IP) -->
+  <div id="insecure-warn">
+    <span class="tag">⚠️ AÇÃO NECESSÁRIA</span>
+    <h3>Chrome está bloqueando o acesso à câmera/tela</h3>
+    <p>O <b>Chrome exige HTTPS</b> para usar <code>getDisplayMedia</code>. Como você está em HTTP local, precisa liberar manualmente:</p>
+    <ol>
+      <li>Abra uma nova aba e acesse: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
+      <li>Cole o endereço abaixo no campo de texto da flag:<br>
+          <code id="originHint"></code></li>
+      <li>Mude o dropdown ao lado para <b>Enabled</b></li>
+      <li>Clique em <b>Relaunch</b> (reinicia o Chrome)</li>
+      <li>Volte para esta página e tente de novo</li>
+    </ol>
+    <p style="margin-top:10px;color:#888">Isso libera apenas este IP — não afeta a segurança do resto do browser.</p>
+  </div>
+
+  <div id="status-box">
+    <div id="qi">
+      <label for="qs">Identificação:</label>
+      <select id="qs">
+        <option value="1">Quest 1</option>
+        <option value="2">Quest 2</option>
+        <option value="3">Quest 3</option>
+        <option value="4">Quest 4</option>
+      </select>
+    </div>
+    <button id="startBtn">▶ Iniciar Transmissão</button>
+    <div id="status" style="margin-top:14px;"><span class="dot"></span>Aguardando...</div>
+    <div id="vc">Viewers conectados: 0</div>
+  </div>
+
+  <video id="vid" autoplay muted playsinline></video>
+  <div id="log"></div>
+</div>
+
+<script>
+  var wrongProto = (location.protocol === 'file:');
+  var wrongPort  = (location.port !== '3000' && location.port !== '');
+  if (wrongProto || wrongPort) {
+    document.getElementById('err').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    var ip = location.hostname || 'SEU_IP';
+    var href = 'http://' + ip + ':3000/sender.html';
+    var a = document.getElementById('lnk');
+    a.href = href; a.textContent = href;
+  }
+
+  // Detecta se mediaDevices não está disponível (contexto inseguro)
+  function checkSecureContext() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      var warn = document.getElementById('insecure-warn');
+      var origin = location.origin; // ex: http://192.168.1.104:3000
+      document.getElementById('originHint').textContent = origin;
+      warn.style.display = 'block';
+      return false;
+    }
+    return true;
+  }
+</script>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+  if (!wrongProto && !wrongPort) {
+    // Checa contexto seguro ao carregar
+    checkSecureContext();
+
+    var socket = io();
+    var localStream = null;
+    var peers = {};
+    var myQuestId = 1;
+    var streaming = false;
+    var iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    function addLog(msg) {
+      var el = document.getElementById('log');
+      var d = document.createElement('div');
+      d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+      el.appendChild(d); el.scrollTop = el.scrollHeight;
+    }
+    function setStatus(msg, c) {
+      var m = { green:'green', yellow:'yellow', red:'red' };
+      document.getElementById('status').innerHTML = '<span class="dot '+(m[c]||'')+'"></span>'+msg;
+    }
+
+    document.getElementById('startBtn').addEventListener('click', async function() {
+      if (streaming) return;
+
+      // Re-checa contexto seguro no clique
+      if (!checkSecureContext()) {
+        addLog('ERRO: getDisplayMedia não disponível — siga as instruções acima.');
+        return;
+      }
+
+      myQuestId = parseInt(document.getElementById('qs').value);
+      document.getElementById('startBtn').disabled = true;
+      setStatus('Capturando tela...', 'yellow');
+      addLog('Solicitando captura de tela...');
+
+      try {
+        localStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true
+        });
+        var vid = document.getElementById('vid');
+        vid.srcObject = localStream; vid.style.display = 'block';
+        streaming = true;
+        // Esconde aviso se estava visível
+        document.getElementById('insecure-warn').style.display = 'none';
+        socket.emit('register-sender', { questId: myQuestId });
+        setStatus('Transmitindo como Quest ' + myQuestId, 'green');
+        addLog('Registrado como Quest ' + myQuestId);
+        localStream.getVideoTracks()[0].onended = function() {
+          setStatus('Transmissão encerrada', 'red');
+          addLog('Compartilhamento encerrado');
+          streaming = false;
+          document.getElementById('startBtn').disabled = false;
+          vid.style.display = 'none';
+        };
+      } catch(e) {
+        setStatus('Erro ao capturar tela', 'red');
+        addLog('Erro: ' + e.message);
+        document.getElementById('startBtn').disabled = false;
+        checkSecureContext();
+      }
+    });
+
+    socket.on('request-offer', async function(d) {
+      if (!localStream) return;
+      addLog('Offer solicitada por ' + d.viewerSocketId.substring(0,8));
+      var pc = new RTCPeerConnection(iceConfig);
+      peers[d.viewerSocketId] = pc;
+      localStream.getTracks().forEach(function(t) { pc.addTrack(t, localStream); });
+      pc.onicecandidate = function(e) {
+        if (e.candidate) socket.emit('ice-candidate-sender', { questId: myQuestId, candidate: e.candidate, targetViewer: d.viewerSocketId });
+      };
+      pc.onconnectionstatechange = function() { addLog('Peer: ' + pc.connectionState); };
+      var offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('webrtc-offer', { questId: myQuestId, offer: offer, targetViewer: d.viewerSocketId });
+      addLog('Offer enviada');
+    });
+
+    socket.on('webrtc-answer', async function(d) {
+      var pc = peers[d.viewerSocketId];
+      if (pc && pc.signalingState === 'have-local-offer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+        addLog('Answer aceita');
+      }
+    });
+
+    socket.on('ice-candidate-viewer', async function(d) {
+      var pc = peers[d.viewerSocketId];
+      if (pc && d.candidate) { try { await pc.addIceCandidate(new RTCIceCandidate(d.candidate)); } catch(e) {} }
+    });
+
+    socket.on('viewer-disconnected', function(d) {
+      if (peers[d.viewerSocketId]) { peers[d.viewerSocketId].close(); delete peers[d.viewerSocketId]; }
+    });
+
+    socket.on('viewer-count', function(d) {
+      document.getElementById('vc').textContent = 'Viewers conectados: ' + d.count;
+    });
+  }
+</script>
+</body>
+</html>
