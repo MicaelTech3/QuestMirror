@@ -1,356 +1,503 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Quest Mirror — Viewer</title>
+  <title>QuestMirror — Receiver</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:     #07080f;
+      --bg2:    #0d0f1a;
+      --bg3:    #131625;
+      --border: #1e2238;
+      --accent: #5b6ef5;
+      --accent2:#7c8fff;
+      --green:  #2dff8f;
+      --red:    #ff4466;
+      --yellow: #ffcc44;
+      --text:   #e8eaf6;
+      --text2:  #7a82aa;
+      --text3:  #3d4266;
+      --mono:   'Space Mono', monospace;
+      --sans:   'Syne', sans-serif;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: 100%; height: 100%;
-      background: #000;
-      overflow: hidden;
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+
+    /* ── SETUP OVERLAY ── */
+    #setup-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px; padding: 24px;
+      font-family: var(--sans);
     }
-    #videoContainer {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .logo { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+    .logo span { color: var(--accent2); }
+    .logo small { display: block; font-size: 0.7rem; font-family: var(--mono); color: var(--text2); letter-spacing: 3px; text-transform: uppercase; margin-top: 2px; text-align: center; }
+
+    .card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 18px; padding: 28px;
+      width: 100%; max-width: 400px;
+      display: flex; flex-direction: column; gap: 16px;
     }
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #000;
+    .field label {
+      display: block; font-size: 0.7rem; font-family: var(--mono);
+      color: var(--text2); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;
     }
-    /* HUD overlay */
-    #hud {
-      position: absolute;
-      top: 16px; left: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      z-index: 10;
-      pointer-events: none;
+    .field input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; color: var(--accent2);
+      font-family: var(--mono); font-size: 2rem; font-weight: 700;
+      letter-spacing: 10px; text-align: center; outline: none;
+      transition: border-color 0.2s;
     }
-    #questLabel {
-      background: rgba(0,0,0,0.65);
-      color: #fff;
-      font-family: 'Segoe UI', sans-serif;
-      font-size: 1rem;
-      padding: 6px 14px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.15);
-      backdrop-filter: blur(8px);
-      letter-spacing: 0.5px;
+    .field input:focus { border-color: var(--accent); }
+    .field input::placeholder { color: var(--text3); font-size: 1.4rem; letter-spacing: 6px; }
+
+    .btn {
+      width: 100%; background: var(--accent); color: #fff; border: none;
+      border-radius: 10px; padding: 13px; font-family: var(--sans);
+      font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s;
     }
-    /* Timer bar */
-    #timerBarWrap {
-      position: absolute;
-      bottom: 0; left: 0;
-      width: 100%;
-      height: 4px;
-      background: rgba(255,255,255,0.1);
-      z-index: 10;
+    .btn:hover { background: var(--accent2); transform: translateY(-1px); }
+    .btn:disabled { background: var(--bg3); color: var(--text3); cursor: default; transform: none; }
+    .btn.secondary {
+      background: var(--bg3); color: var(--text2);
+      border: 1px solid var(--border); margin-top: -8px;
     }
-    #timerBar {
-      height: 100%;
-      background: linear-gradient(90deg, #3a5fff, #7c9fff);
-      width: 100%;
-      transition: none;
+    .btn.secondary:hover { color: var(--text); border-color: var(--border); background: var(--bg3); transform: none; }
+
+    .error-msg {
+      font-family: var(--mono); font-size: 0.78rem; color: var(--red);
+      background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.2);
+      border-radius: 8px; padding: 10px; text-align: center; display: none;
     }
-    /* Waiting screen */
-    #waitingScreen {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #050510;
-      color: #e0e0e0;
-      font-family: 'Segoe UI', sans-serif;
-      z-index: 20;
-      gap: 20px;
+
+    /* ── WAITING ── */
+    #waiting-screen {
+      position: fixed; inset: 0; z-index: 50;
+      background: var(--bg);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; font-family: var(--sans); color: var(--text);
     }
-    #waitingScreen h2 { font-size: 1.6rem; color: #7c9fff; }
-    #waitingScreen p  { font-size: 1rem; color: #666; }
     .spinner {
-      width: 48px; height: 48px;
-      border: 4px solid #1e1e3a;
-      border-top-color: #3a5fff;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+      width: 44px; height: 44px;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Dots: active senders */
-    #senderDots {
-      position: absolute;
-      bottom: 14px; right: 16px;
-      display: flex;
-      gap: 8px;
-      z-index: 10;
+    #waiting-screen h2 { font-size: 1.2rem; font-weight: 800; }
+    #waiting-screen p  { font-size: 0.82rem; color: var(--text2); font-family: var(--mono); }
+
+    /* ── PLAYER ── */
+    #player-screen {
+      position: fixed; inset: 0; z-index: 10;
+      background: #000; display: none;
+    }
+    #main-video {
+      width: 100%; height: 100%;
+      object-fit: contain; background: #000;
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
       pointer-events: none;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    #hud.visible { opacity: 1; pointer-events: all; }
+    .hud-label {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: 0.85rem; color: #fff;
+    }
+    .hud-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+    .hud-server { font-size: 0.75rem; color: rgba(255,255,255,0.5); font-family: var(--mono); }
+
+    .btn-exit-hud {
+      background: rgba(255,255,255,0.1); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.15); color: #fff;
+      border-radius: 8px; padding: 6px 14px; cursor: pointer;
+      font-family: var(--mono); font-size: 0.75rem; transition: all 0.2s;
+    }
+    .btn-exit-hud:hover { background: rgba(255,68,102,0.3); border-color: rgba(255,68,102,0.4); }
+
+    /* Timer bar */
+    #timer-bar-wrap {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
+      background: rgba(255,255,255,0.08); z-index: 20;
+    }
+    #timer-bar {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+
+    /* Sender dots */
+    #sender-dots {
+      position: fixed; bottom: 14px; right: 20px; z-index: 20;
+      display: flex; gap: 8px; pointer-events: none;
     }
     .sdot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.25);
-      transition: background 0.3s;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); transition: all 0.3s;
     }
-    .sdot.active { background: #4cff72; box-shadow: 0 0 8px #4cff72; }
-    /* Transition flash */
-    #flash {
-      position: absolute;
-      inset: 0;
-      background: #fff;
-      opacity: 0;
-      z-index: 15;
+    .sdot.active { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+    /* Quest label bottom left */
+    #quest-label {
+      position: fixed; bottom: 14px; left: 20px; z-index: 20;
+      font-family: var(--mono); font-size: 0.78rem; color: rgba(255,255,255,0.5);
       pointer-events: none;
-      transition: opacity 0.15s ease;
+    }
+
+    /* Flash on switch */
+    #flash {
+      position: fixed; inset: 0; z-index: 30;
+      background: #fff; opacity: 0; pointer-events: none;
+      transition: opacity 0.15s;
     }
   </style>
 </head>
 <body>
 
-<div id="videoContainer">
-  <video id="mainVideo" autoplay playsinline></video>
-
-  <div id="hud">
-    <div id="questLabel">📡 Aguardando...</div>
-  </div>
-
-  <div id="timerBarWrap">
-    <div id="timerBar"></div>
-  </div>
-
-  <div id="senderDots"></div>
-  <div id="flash"></div>
-
-  <div id="waitingScreen">
-    <div class="spinner"></div>
-    <h2>Quest Mirror</h2>
-    <p>Aguardando conexão dos dispositivos...</p>
-    <p id="waitInfo" style="font-size:0.8rem;color:#444;"></p>
+<!-- ── SETUP ── -->
+<div id="setup-overlay">
+  <div class="logo">Quest<span>Mirror</span> <small>Receiver</small></div>
+  <div class="card">
+    <div class="field">
+      <label>ID do Server (6 dígitos)</label>
+      <input type="text" id="input-id" placeholder="000000" maxlength="6" inputmode="numeric" autofocus/>
+    </div>
+    <div class="error-msg" id="setup-error">Server não encontrado.</div>
+    <button class="btn" id="connect-btn">Conectar</button>
   </div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script>
-  if (window.location.port !== '3000' && window.location.port !== '') {
-    document.body.innerHTML = `
-      <div style="background:#050510;color:#e0e0e0;font-family:monospace;padding:40px;height:100vh;
-                  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-        <h2 style="color:#ffd04c;">⚠️ Porta errada! (${window.location.port})</h2>
-        <p style="color:#aaa;text-align:center;">Acesse pelo endereço correto do servidor Node:</p>
-        <a href="http://${window.location.hostname}:3000/viewer.html"
-           style="color:#4cff72;font-size:1.1rem;">
-          http://${window.location.hostname}:3000/viewer.html
-        </a>
-        <p style="color:#555;font-size:0.85rem;">Execute <b style="color:#aaa">start.bat</b> ou <b style="color:#aaa">node server.js</b> primeiro.</p>
-      </div>`;
-    throw new Error('Aberto fora do servidor Node.');
+<!-- ── WAITING ── -->
+<div id="waiting-screen">
+  <div class="spinner"></div>
+  <h2>Aguardando senders...</h2>
+  <p id="waiting-info">Conectado ao server. Esperando Quests.</p>
+</div>
+
+<!-- ── PLAYER ── -->
+<div id="player-screen">
+  <video id="main-video" autoplay playsinline></video>
+</div>
+
+<!-- HUD (toque na tela para mostrar) -->
+<div id="hud">
+  <div class="hud-label">
+    <span class="hud-dot"></span>
+    <span id="hud-quest">—</span>
+  </div>
+  <div class="hud-server" id="hud-server">—</div>
+  <button class="btn-exit-hud" id="exit-btn">✕ Sair</button>
+</div>
+
+<div id="timer-bar-wrap"><div id="timer-bar"></div></div>
+<div id="sender-dots"></div>
+<div id="quest-label" id="quest-label-bottom"></div>
+<div id="flash"></div>
+
+<script type="module">
+  import { initializeApp }       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, query, where,
+           getDocs, doc, setDoc, onSnapshot,
+           serverTimestamp, deleteDoc }
+                                  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCEPrlqbW7ec7mSJLJF6lrY6pk-F1EXGTE",
+    authDomain:        "questmirror-server.firebaseapp.com",
+    projectId:         "questmirror-server",
+    storageBucket:     "questmirror-server.firebasestorage.app",
+    messagingSenderId: "248196878452",
+    appId:             "1:248196878452:web:2c92315ea5e2edca5a0121"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // ── State ─────────────────────────────────────────────
+  const SWITCH_INTERVAL = 10000;
+  let serverDocId   = null;
+  let serverData    = null;
+  let receiverId    = 'recv_' + Math.random().toString(36).substring(2, 10);
+  let senders       = [];       // [{ docId, questName, connected }]
+  let currentIndex  = 0;
+  let peerConns     = {};       // senderDocId → RTCPeerConnection
+  let remoteStreams  = {};       // senderDocId → MediaStream
+  let unsubSenders  = null;
+  let switchTimer   = null;
+  let timerAnimId   = null;
+  let hudTimer      = null;
+  let unsubSignals  = {};       // senderDocId → unsubscribe fn
+
+  const iceConfig = { iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]};
+
+  // ── DOM ───────────────────────────────────────────────
+  const setupOverlay  = document.getElementById('setup-overlay');
+  const waitingScreen = document.getElementById('waiting-screen');
+  const playerScreen  = document.getElementById('player-screen');
+  const connectBtn    = document.getElementById('connect-btn');
+  const inputId       = document.getElementById('input-id');
+  const setupError    = document.getElementById('setup-error');
+  const mainVideo     = document.getElementById('main-video');
+  const hud           = document.getElementById('hud');
+  const exitBtn       = document.getElementById('exit-btn');
+  const timerBar      = document.getElementById('timer-bar');
+  const senderDots    = document.getElementById('sender-dots');
+  const questLabel    = document.getElementById('quest-label');
+  const flashEl       = document.getElementById('flash');
+
+  // Load saved ID
+  const savedId = localStorage.getItem('qm-receiver-id');
+  if (savedId) inputId.value = savedId;
+
+  inputId.addEventListener('input', () => {
+    inputId.value = inputId.value.replace(/\D/g, '').substring(0, 6);
+  });
+
+  // ── CONNECT ───────────────────────────────────────────
+  connectBtn.addEventListener('click', async () => {
+    const id = inputId.value.trim();
+    if (id.length !== 6) { showError('O ID deve ter 6 dígitos'); return; }
+
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Conectando...';
+    setupError.style.display = 'none';
+
+    try {
+      const q    = query(collection(db, 'servers'), where('serverId', '==', id));
+      const snap = await getDocs(q);
+
+      if (snap.empty) { showError('Server não encontrado.'); reset(); return; }
+
+      serverDocId = snap.docs[0].id;
+      serverData  = snap.docs[0].data();
+
+      if (!serverData.active) { showError('Server desativado.'); reset(); return; }
+
+      localStorage.setItem('qm-receiver-id', id);
+
+      // Go to waiting
+      setupOverlay.style.display  = 'none';
+      waitingScreen.style.display = 'flex';
+      document.getElementById('waiting-info').textContent =
+        'Conectado ao server "' + serverData.name + '". Esperando Quests.';
+      document.getElementById('hud-server').textContent = serverData.name + ' · ' + id;
+
+      // Listen for senders
+      listenSenders();
+
+    } catch(e) {
+      showError('Erro: ' + e.message); reset();
+    }
+  });
+  inputId.addEventListener('keydown', e => { if(e.key==='Enter') connectBtn.click(); });
+
+  // ── LISTEN SENDERS ────────────────────────────────────
+  function listenSenders() {
+    const ref = collection(db, 'servers', serverDocId, 'senders');
+    unsubSenders = onSnapshot(ref, async (snap) => {
+      senders = snap.docs
+        .map(d => ({ docId: d.id, ...d.data() }))
+        .filter(s => s.connected);
+
+      updateDots();
+
+      // Connect to any new sender not yet connected
+      for (const sender of senders) {
+        if (!peerConns[sender.docId]) {
+          await requestStreamFromSender(sender);
+        }
+      }
+
+      // Clean up disconnected senders
+      for (const docId of Object.keys(peerConns)) {
+        if (!senders.find(s => s.docId === docId)) {
+          peerConns[docId].close();
+          delete peerConns[docId];
+          delete remoteStreams[docId];
+          if (unsubSignals[docId]) { unsubSignals[docId](); delete unsubSignals[docId]; }
+        }
+      }
+
+      if (senders.length > 0) {
+        waitingScreen.style.display = 'none';
+        playerScreen.style.display  = 'block';
+        if (!switchTimer) startCycle();
+        if (!isCurrentValid()) switchTo(0);
+      } else {
+        waitingScreen.style.display = 'flex';
+        playerScreen.style.display  = 'none';
+        stopCycle();
+      }
+    });
   }
 
-  const SWITCH_INTERVAL = 10000; // 10 segundos
+  // ── REQUEST STREAM ────────────────────────────────────
+  async function requestStreamFromSender(sender) {
+    // Signal sender that we want to connect
+    const sigDoc = doc(db, 'servers', serverDocId, 'senders', sender.docId, 'signaling', receiverId);
+    await setDoc(sigDoc, { type: 'request', receiverId, ts: serverTimestamp() });
 
-  const socket = io();
-  const mainVideo = document.getElementById('mainVideo');
-  const questLabel = document.getElementById('questLabel');
-  const timerBar   = document.getElementById('timerBar');
-  const waitingScreen = document.getElementById('waitingScreen');
-  const senderDotsEl  = document.getElementById('senderDots');
-  const flashEl = document.getElementById('flash');
+    // Listen for offer from sender
+    unsubSignals[sender.docId] = onSnapshot(sigDoc, async (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
 
-  // Estado
-  let senders = [];           // [{ socketId, questId }]
-  let currentIndex = 0;       // índice atual em senders[]
-  let peerConnections = {};   // socketId → RTCPeerConnection
-  let remoteStreams = {};      // socketId → MediaStream
-  let switchTimer = null;
-  let timerBarAnim = null;
+      if (data.type === 'offer' && !peerConns[sender.docId]) {
+        await handleOffer(sender, data.offer);
+      }
+      if (data.type === 'ice-sender' && peerConns[sender.docId]) {
+        try {
+          await peerConns[sender.docId].addIceCandidate(new RTCIceCandidate(data.candidate));
+        } catch(e) {}
+      }
+    });
+  }
 
-  const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
-  // ── Registro ────────────────────────────────────────────────────
-  socket.emit('register-viewer');
-
-  // ── Lista de senders atualizada ─────────────────────────────────
-  socket.on('sender-list', (list) => {
-    senders = list;
-    updateDots();
-    if (senders.length > 0) {
-      waitingScreen.style.display = 'none';
-      // Conecta a todos os senders ainda não conectados
-      senders.forEach(s => {
-        if (!peerConnections[s.socketId]) {
-          requestOffer(s.socketId);
-        }
-      });
-      // Se não está exibindo nada válido, começa
-      if (!isCurrentValid()) switchTo(0);
-    } else {
-      waitingScreen.style.display = 'flex';
-      stopSwitchCycle();
-    }
-  });
-
-  // ── Sender desconectou ───────────────────────────────────────────
-  socket.on('sender-disconnected', ({ senderSocketId }) => {
-    if (peerConnections[senderSocketId]) {
-      peerConnections[senderSocketId].close();
-      delete peerConnections[senderSocketId];
-    }
-    delete remoteStreams[senderSocketId];
-
-    // Remove da lista local (o sender-list atualizado virá do server)
-    senders = senders.filter(s => s.socketId !== senderSocketId);
-    updateDots();
-
-    if (senders.length === 0) {
-      mainVideo.srcObject = null;
-      questLabel.textContent = '📡 Aguardando...';
-      waitingScreen.style.display = 'flex';
-      stopSwitchCycle();
-    } else {
-      if (!isCurrentValid()) switchTo(0);
-    }
-  });
-
-  // ── WebRTC: recebe offer do Quest (via server) ───────────────────
-  socket.on('webrtc-offer', async ({ questId, offer, senderSocketId }) => {
-    let pc = peerConnections[senderSocketId];
-    if (!pc) pc = createPeer(senderSocketId, questId);
-
-    if (pc.signalingState !== 'stable') {
-      console.warn('PC not stable, ignoring offer');
-      return;
-    }
-
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket.emit('webrtc-answer', { senderSocketId, answer, viewerSocketId: socket.id });
-  });
-
-  // ── ICE candidates do Quest ─────────────────────────────────────
-  socket.on('ice-candidate-sender', async ({ candidate, senderSocketId }) => {
-    const pc = peerConnections[senderSocketId];
-    if (pc && candidate) {
-      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e) {}
-    }
-  });
-
-  // ── Criar peer para um sender ───────────────────────────────────
-  function createPeer(senderSocketId, questId) {
+  async function handleOffer(sender, offer) {
     const pc = new RTCPeerConnection(iceConfig);
-    peerConnections[senderSocketId] = pc;
+    peerConns[sender.docId] = pc;
 
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate) {
-        socket.emit('ice-candidate-viewer', { senderSocketId, candidate, viewerSocketId: socket.id });
+    pc.ontrack = ({ streams }) => {
+      remoteStreams[sender.docId] = streams[0];
+      if (senders[currentIndex]?.docId === sender.docId) {
+        showStream(sender.docId);
       }
     };
 
-    pc.ontrack = ({ streams }) => {
-      remoteStreams[senderSocketId] = streams[0];
-      console.log(`Stream recebido do Quest ${questId}`);
-      // Se é o atual, exibe imediatamente
-      if (senders[currentIndex]?.socketId === senderSocketId) {
-        showStream(senderSocketId);
+    pc.onicecandidate = async ({ candidate }) => {
+      if (candidate) {
+        const sigDoc = doc(db, 'servers', serverDocId, 'senders', sender.docId, 'signaling', receiverId);
+        await setDoc(sigDoc, { type: 'ice-receiver', candidate: candidate.toJSON() }, { merge: true });
       }
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(`Quest${questId} peer: ${pc.connectionState}`);
+      if (['disconnected','failed','closed'].includes(pc.connectionState)) {
+        delete peerConns[sender.docId];
+        delete remoteStreams[sender.docId];
+      }
     };
 
-    return pc;
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    const sigDoc = doc(db, 'servers', serverDocId, 'senders', sender.docId, 'signaling', receiverId);
+    await setDoc(sigDoc, { type: 'answer', answer: { type: answer.type, sdp: answer.sdp } }, { merge: true });
   }
 
-  function requestOffer(senderSocketId) {
-    // Pede ao server para notificar o sender que o viewer quer uma offer
-    socket.emit('request-offer-from-viewer', { senderSocketId, viewerSocketId: socket.id });
-  }
-
-  // ── Exibir stream de um sender ──────────────────────────────────
-  function showStream(senderSocketId) {
-    const stream = remoteStreams[senderSocketId];
+  // ── DISPLAY ───────────────────────────────────────────
+  function showStream(senderDocId) {
+    const stream = remoteStreams[senderDocId];
     if (!stream) return;
     mainVideo.srcObject = stream;
-    const sender = senders.find(s => s.socketId === senderSocketId);
-    if (sender) questLabel.textContent = `🥽 Quest ${sender.questId}`;
+    const sender = senders.find(s => s.docId === senderDocId);
+    const label  = sender ? '🥽 ' + sender.questName : '🥽 Quest';
+    document.getElementById('hud-quest').textContent = label;
+    questLabel.textContent = label;
   }
 
-  // ── Trocar para índice ──────────────────────────────────────────
+  function isCurrentValid() {
+    return senders.length > 0 &&
+           senders[currentIndex] &&
+           remoteStreams[senders[currentIndex].docId];
+  }
+
   function switchTo(index) {
     if (senders.length === 0) return;
     currentIndex = ((index % senders.length) + senders.length) % senders.length;
     const target = senders[currentIndex];
-    flashTransition(() => showStream(target.socketId));
+    flashTransition(() => showStream(target.docId));
     updateDots();
     restartTimerBar();
   }
 
-  function isCurrentValid() {
-    return senders.length > 0 && senders[currentIndex] &&
-           remoteStreams[senders[currentIndex].socketId];
+  function flashTransition(cb) {
+    flashEl.style.opacity = '0.12';
+    setTimeout(() => { cb(); flashEl.style.opacity = '0'; }, 150);
   }
 
-  // ── Ciclo automático ────────────────────────────────────────────
-  function startSwitchCycle() {
-    stopSwitchCycle();
+  // ── CYCLE ─────────────────────────────────────────────
+  function startCycle() {
+    stopCycle();
+    const interval = (serverData?.rotationInterval || 10) * 1000;
+    if (interval === 0) return; // manual mode
     switchTimer = setInterval(() => {
       if (senders.length > 1) switchTo(currentIndex + 1);
-    }, SWITCH_INTERVAL);
+    }, interval);
+    restartTimerBar();
   }
 
-  function stopSwitchCycle() {
+  function stopCycle() {
     if (switchTimer) { clearInterval(switchTimer); switchTimer = null; }
-    if (timerBarAnim) { cancelAnimationFrame(timerBarAnim); timerBarAnim = null; }
+    if (timerAnimId) { cancelAnimationFrame(timerAnimId); timerAnimId = null; }
     timerBar.style.width = '100%';
   }
 
   function restartTimerBar() {
-    if (timerBarAnim) cancelAnimationFrame(timerBarAnim);
+    if (timerAnimId) cancelAnimationFrame(timerAnimId);
+    const interval = (serverData?.rotationInterval || 10) * 1000;
+    if (interval === 0) { timerBar.style.width = '0'; return; }
     const start = performance.now();
     function frame(now) {
-      const elapsed = now - start;
-      const pct = Math.max(0, 100 - (elapsed / SWITCH_INTERVAL) * 100);
+      const pct = Math.max(0, 100 - ((now - start) / interval) * 100);
       timerBar.style.width = pct + '%';
-      if (elapsed < SWITCH_INTERVAL) timerBarAnim = requestAnimationFrame(frame);
+      if (pct > 0) timerAnimId = requestAnimationFrame(frame);
     }
-    timerBarAnim = requestAnimationFrame(frame);
+    timerAnimId = requestAnimationFrame(frame);
   }
 
-  // Inicia ciclo quando tiver ao menos 1 stream disponível
-  const cycleWatcher = setInterval(() => {
-    if (senders.length > 0 && isCurrentValid() && !switchTimer) {
-      startSwitchCycle();
-      restartTimerBar();
-      clearInterval(cycleWatcher);
-    }
-  }, 500);
-
-  // ── Dots indicadores ────────────────────────────────────────────
+  // ── DOTS ──────────────────────────────────────────────
   function updateDots() {
-    senderDotsEl.innerHTML = '';
-    senders.forEach((s, i) => {
-      const d = document.createElement('div');
-      d.className = 'sdot' + (i === currentIndex ? ' active' : '');
-      senderDotsEl.appendChild(d);
-    });
+    senderDots.innerHTML = senders.map((s, i) =>
+      `<div class="sdot ${i === currentIndex ? 'active' : ''}"></div>`
+    ).join('');
   }
 
-  // ── Flash de transição ──────────────────────────────────────────
-  function flashTransition(callback) {
-    flashEl.style.opacity = '0.15';
-    setTimeout(() => {
-      callback();
-      flashEl.style.opacity = '0';
-    }, 150);
+  // ── HUD (show on tap/click) ────────────────────────────
+  document.addEventListener('click', () => {
+    hud.classList.add('visible');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => hud.classList.remove('visible'), 3000);
+  });
+
+  exitBtn.addEventListener('click', () => {
+    stopCycle();
+    if (unsubSenders) unsubSenders();
+    Object.values(unsubSignals).forEach(u => u());
+    Object.values(peerConns).forEach(pc => pc.close());
+    mainVideo.srcObject = null;
+    playerScreen.style.display  = 'none';
+    waitingScreen.style.display = 'none';
+    setupOverlay.style.display  = 'flex';
+    connectBtn.disabled = false;
+    connectBtn.textContent = 'Conectar';
+  });
+
+  // ── UTILS ─────────────────────────────────────────────
+  function showError(msg) { setupError.textContent = msg; setupError.style.display = 'block'; }
+  function reset() { connectBtn.disabled = false; connectBtn.textContent = 'Conectar'; }
+
+  // Auto-connect if saved ID
+  if (savedId && savedId.length === 6) {
+    setTimeout(() => connectBtn.click(), 300);
   }
 </script>
 </body>

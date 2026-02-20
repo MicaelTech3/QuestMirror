@@ -1,244 +1,479 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Quest Sender</title>
+  <title>QuestMirror — Sender</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:     #07080f;
+      --bg2:    #0d0f1a;
+      --bg3:    #131625;
+      --border: #1e2238;
+      --accent: #5b6ef5;
+      --accent2:#7c8fff;
+      --green:  #2dff8f;
+      --red:    #ff4466;
+      --yellow: #ffcc44;
+      --text:   #e8eaf6;
+      --text2:  #7a82aa;
+      --text3:  #3d4266;
+      --mono:   'Space Mono', monospace;
+      --sans:   'Syne', sans-serif;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0a0a0f; color: #e0e0e0;
-      font-family: 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      font-family: var(--sans); min-height: 100vh;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      min-height: 100vh; gap: 20px; padding: 20px;
+      padding: 24px; gap: 20px;
     }
-    h1 { font-size: 1.4rem; color: #7c9fff; letter-spacing: 1px; }
-    #status-box {
-      background: #12121a; border: 1px solid #2a2a3d;
-      border-radius: 12px; padding: 20px 30px;
-      text-align: center; width: 100%; max-width: 460px;
-    }
-    #status { font-size: 1rem; margin-bottom: 12px; min-height: 24px; }
-    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: #555; }
-    .dot.green  { background: #4cff72; box-shadow: 0 0 8px #4cff72; }
-    .dot.yellow { background: #ffd04c; box-shadow: 0 0 8px #ffd04c; }
-    .dot.red    { background: #ff4c4c; box-shadow: 0 0 8px #ff4c4c; }
-    #qi { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 16px; }
-    label { font-size: 0.9rem; color: #aaa; }
-    select { background: #1e1e2e; color: #e0e0e0; border: 1px solid #3a3a5c; border-radius: 8px; padding: 6px 12px; font-size: 1rem; }
-    button { background: #3a5fff; color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
-    button:hover { background: #5a7fff; }
-    button:disabled { background: #2a2a3d; color: #555; cursor: default; }
-    #vc { font-size: 0.85rem; color: #777; margin-top: 8px; }
-    video { width: 100%; max-width: 460px; border-radius: 10px; border: 1px solid #2a2a3d; background: #000; display: none; }
-    #log { width: 100%; max-width: 460px; background: #0d0d15; border: 1px solid #1e1e2e; border-radius: 8px; padding: 10px; font-size: 0.75rem; color: #666; max-height: 150px; overflow-y: auto; font-family: monospace; }
 
-    /* Alerta de contexto inseguro */
+    .logo { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--accent2); }
+    .logo small { display: block; font-size: 0.7rem; font-family: var(--mono); color: var(--text2); letter-spacing: 3px; text-transform: uppercase; margin-top: 2px; text-align: center; }
+
+    .card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 18px; padding: 28px;
+      width: 100%; max-width: 440px;
+    }
+
+    /* ── SETUP SCREEN ── */
+    #setup-screen { display: flex; flex-direction: column; gap: 16px; }
+    .field label {
+      display: block; font-size: 0.7rem; font-family: var(--mono);
+      color: var(--text2); letter-spacing: 1.5px; text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .field input {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px; color: var(--text);
+      font-family: var(--mono); font-size: 1rem; outline: none;
+      transition: border-color 0.2s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .field input.id-input {
+      font-size: 1.6rem; font-weight: 700; letter-spacing: 8px;
+      text-align: center; color: var(--accent2);
+    }
+    .field input.id-input::placeholder { color: var(--text3); letter-spacing: 4px; font-size: 1.2rem; }
+
+    .btn {
+      width: 100%; background: var(--accent); color: #fff; border: none;
+      border-radius: 10px; padding: 13px; font-family: var(--sans);
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent2); transform: translateY(-1px); }
+    .btn:disabled { background: var(--bg3); color: var(--text3); cursor: default; transform: none; }
+    .btn.danger { background: rgba(255,68,102,0.15); color: var(--red); border: 1px solid rgba(255,68,102,0.3); }
+    .btn.danger:hover { background: rgba(255,68,102,0.25); }
+
+    .error-msg {
+      font-family: var(--mono); font-size: 0.78rem;
+      color: var(--red); text-align: center; display: none;
+      background: rgba(255,68,102,0.08); border: 1px solid rgba(255,68,102,0.2);
+      border-radius: 8px; padding: 10px;
+    }
+
+    /* ── LIVE SCREEN ── */
+    #live-screen { display: none; flex-direction: column; gap: 16px; }
+
+    .live-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .live-title { font-size: 1rem; font-weight: 700; }
+    .live-badge {
+      display: flex; align-items: center; gap: 7px;
+      font-family: var(--mono); font-size: 0.72rem;
+      background: rgba(45,255,143,0.1); border: 1px solid rgba(45,255,143,0.25);
+      color: var(--green); border-radius: 20px; padding: 4px 12px;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+
+    .info-row {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .info-chip {
+      font-family: var(--mono); font-size: 0.72rem; color: var(--text2);
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 12px;
+    }
+    .info-chip b { color: var(--accent2); }
+
+    video {
+      width: 100%; border-radius: 10px; border: 1px solid var(--border);
+      background: #000; display: none; max-height: 220px; object-fit: contain;
+    }
+
+    .peers-section { margin-top: 4px; }
+    .peers-title { font-size: 0.68rem; font-family: var(--mono); color: var(--text3); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+    .peers-list { display: flex; flex-direction: column; gap: 6px; }
+    .peer-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; font-family: var(--mono); font-size: 0.78rem;
+    }
+    .peer-row.connected { border-color: rgba(45,255,143,0.2); }
+    .peer-id { color: var(--text2); }
+    .peer-state { font-size: 0.68rem; }
+    .peer-state.connected { color: var(--green); }
+    .peer-state.connecting { color: var(--yellow); }
+    .peer-state.failed { color: var(--red); }
+    .no-peers { color: var(--text3); font-size: 0.78rem; font-family: var(--mono); text-align: center; padding: 8px 0; }
+
+    #log {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px; font-size: 0.7rem; color: var(--text3);
+      max-height: 100px; overflow-y: auto; font-family: var(--mono);
+    }
+
+    /* Insecure context warning */
     #insecure-warn {
-      display: none;
-      background: #1a0a00; border: 1px solid #ff6a00;
-      border-radius: 12px; padding: 18px 24px;
-      width: 100%; max-width: 460px; text-align: left;
+      display: none; background: rgba(255,204,68,0.08);
+      border: 1px solid rgba(255,204,68,0.25); border-radius: 12px;
+      padding: 16px; font-family: var(--mono); font-size: 0.76rem;
+      color: var(--yellow); line-height: 1.7; width: 100%; max-width: 440px;
     }
-    #insecure-warn h3 { color: #ff9a3c; margin-bottom: 10px; font-size: 1rem; }
-    #insecure-warn p  { color: #ccc; font-size: 0.85rem; line-height: 1.6; margin-bottom: 8px; }
-    #insecure-warn code {
-      background: #0d0d15; color: #4cff72;
-      padding: 2px 6px; border-radius: 4px; font-size: 0.85rem;
-    }
-    #insecure-warn ol { color: #ccc; font-size: 0.85rem; line-height: 1.8; padding-left: 18px; }
-    #insecure-warn .tag { display: inline-block; background: #ff6a0022; color: #ff9a3c; border: 1px solid #ff6a0055; border-radius: 4px; padding: 1px 7px; font-size: 0.78rem; margin-bottom: 8px; }
-
-    /* Tela de erro abertura fora do Node */
-    #err { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 20px; text-align: center; }
-    #err h2 { color: #ffd04c; font-size: 1.3rem; }
-    #err .box { background: #12121a; border: 1px solid #3a3a5c; border-radius: 10px; padding: 20px 30px; }
-    #err a { color: #4cff72; font-size: 1.1rem; }
+    #insecure-warn b { color: #fff; }
+    #insecure-warn code { background: rgba(255,204,68,0.1); padding: 1px 6px; border-radius: 4px; }
   </style>
 </head>
 <body>
 
-<!-- Tela: aberto fora do Node -->
-<div id="err">
-  <h2>⚠️ Aberto sem servidor Node!</h2>
-  <p style="color:#aaa">Abra pelo endereço correto, não pelo VS Code nem direto do disco.</p>
-  <div class="box">
-    <p style="color:#7c9fff;margin-bottom:10px;">Siga estes passos:</p>
-    <p style="color:#aaa;margin-bottom:4px;">1. Dê double-click em <b style="color:#fff">start.bat</b></p>
-    <p style="color:#aaa;margin-bottom:4px;">2. Veja o IP no terminal</p>
-    <p style="color:#aaa;margin-bottom:14px;">3. Abra este endereço no browser:</p>
-    <a id="lnk" href="#">http://SEU_IP:3000/sender.html</a>
-  </div>
-</div>
+  <div class="logo">Quest<span>Mirror</span> <small>Sender</small></div>
 
-<!-- App principal -->
-<div id="app">
-  <h1>🥽 Quest Mirror — Sender</h1>
-
-  <!-- Aviso contexto inseguro (HTTP + IP) -->
+  <!-- Aviso contexto inseguro -->
   <div id="insecure-warn">
-    <span class="tag">⚠️ AÇÃO NECESSÁRIA</span>
-    <h3>Chrome está bloqueando o acesso à câmera/tela</h3>
-    <p>O <b>Chrome exige HTTPS</b> para usar <code>getDisplayMedia</code>. Como você está em HTTP local, precisa liberar manualmente:</p>
-    <ol>
-      <li>Abra uma nova aba e acesse: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
-      <li>Cole o endereço abaixo no campo de texto da flag:<br>
-          <code id="originHint"></code></li>
-      <li>Mude o dropdown ao lado para <b>Enabled</b></li>
-      <li>Clique em <b>Relaunch</b> (reinicia o Chrome)</li>
-      <li>Volte para esta página e tente de novo</li>
-    </ol>
-    <p style="margin-top:10px;color:#888">Isso libera apenas este IP — não afeta a segurança do resto do browser.</p>
+    ⚠️ <b>Chrome bloqueando captura de tela.</b><br>
+    Abra uma nova aba, cole na barra de endereço:<br>
+    <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code><br>
+    Adicione <code id="origin-hint"></code> → <b>Enabled</b> → Relaunch.
   </div>
 
-  <div id="status-box">
-    <div id="qi">
-      <label for="qs">Identificação:</label>
-      <select id="qs">
-        <option value="1">Quest 1</option>
-        <option value="2">Quest 2</option>
-        <option value="3">Quest 3</option>
-        <option value="4">Quest 4</option>
-      </select>
+  <div class="card">
+
+    <!-- ── SETUP ── -->
+    <div id="setup-screen">
+      <div class="field">
+        <label>Seu nome</label>
+        <input type="text" id="input-name" placeholder="ex: João, Quest 1..." maxlength="30"/>
+      </div>
+      <div class="field">
+        <label>ID do Server (6 dígitos)</label>
+        <input type="text" id="input-id" class="id-input" placeholder="000000" maxlength="6" inputmode="numeric"/>
+      </div>
+      <div class="error-msg" id="setup-error">Server não encontrado. Verifique o ID.</div>
+      <button class="btn" id="connect-btn">Conectar e Transmitir</button>
     </div>
-    <button id="startBtn">▶ Iniciar Transmissão</button>
-    <div id="status" style="margin-top:14px;"><span class="dot"></span>Aguardando...</div>
-    <div id="vc">Viewers conectados: 0</div>
-  </div>
 
-  <video id="vid" autoplay muted playsinline></video>
-  <div id="log"></div>
-</div>
+    <!-- ── LIVE ── -->
+    <div id="live-screen">
+      <div class="live-header">
+        <div class="live-title" id="live-title">Transmitindo</div>
+        <div class="live-badge"><span class="live-dot"></span>AO VIVO</div>
+      </div>
 
-<script>
-  var wrongProto = (location.protocol === 'file:');
-  var wrongPort  = (location.port !== '3000' && location.port !== '');
-  if (wrongProto || wrongPort) {
-    document.getElementById('err').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-    var ip = location.hostname || 'SEU_IP';
-    var href = 'http://' + ip + ':3000/sender.html';
-    var a = document.getElementById('lnk');
-    a.href = href; a.textContent = href;
-  }
+      <div class="info-row">
+        <div class="info-chip">Server: <b id="info-server">—</b></div>
+        <div class="info-chip">ID: <b id="info-id">—</b></div>
+        <div class="info-chip">Nome: <b id="info-name">—</b></div>
+      </div>
 
-  // Detecta se mediaDevices não está disponível (contexto inseguro)
-  function checkSecureContext() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      var warn = document.getElementById('insecure-warn');
-      var origin = location.origin; // ex: http://192.168.1.104:3000
-      document.getElementById('originHint').textContent = origin;
-      warn.style.display = 'block';
+      <video id="local-video" autoplay muted playsinline></video>
+
+      <div class="peers-section">
+        <div class="peers-title">Receivers conectados</div>
+        <div class="peers-list" id="peers-list">
+          <div class="no-peers">Aguardando receiver...</div>
+        </div>
+      </div>
+
+      <div id="log"></div>
+      <button class="btn danger" id="stop-btn">⏹ Parar Transmissão</button>
+    </div>
+
+  </div><!-- /card -->
+
+<script type="module">
+  import { initializeApp }       from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, query, where,
+           getDocs, doc, setDoc, updateDoc, deleteDoc,
+           onSnapshot, addDoc, serverTimestamp }
+                                  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCEPrlqbW7ec7mSJLJF6lrY6pk-F1EXGTE",
+    authDomain:        "questmirror-server.firebaseapp.com",
+    projectId:         "questmirror-server",
+    storageBucket:     "questmirror-server.firebasestorage.app",
+    messagingSenderId: "248196878452",
+    appId:             "1:248196878452:web:2c92315ea5e2edca5a0121"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+
+  // ── State ─────────────────────────────────────────────
+  let localStream  = null;
+  let serverDocId  = null;
+  let serverData   = null;
+  let senderDocId  = null;
+  let peers        = {};      // receiverId → RTCPeerConnection
+  let unsubSignal  = null;
+  let myName       = '';
+  let myId         = '';
+
+  const iceConfig = { iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]};
+
+  // ── DOM ───────────────────────────────────────────────
+  const setupScreen = document.getElementById('setup-screen');
+  const liveScreen  = document.getElementById('live-screen');
+  const connectBtn  = document.getElementById('connect-btn');
+  const stopBtn     = document.getElementById('stop-btn');
+  const inputName   = document.getElementById('input-name');
+  const inputId     = document.getElementById('input-id');
+  const setupError  = document.getElementById('setup-error');
+  const localVideo  = document.getElementById('local-video');
+  const peersList   = document.getElementById('peers-list');
+  const logEl       = document.getElementById('log');
+
+  // Load saved config
+  const saved = JSON.parse(localStorage.getItem('qm-sender') || '{}');
+  if (saved.name) inputName.value = saved.name;
+  if (saved.serverId) inputId.value = saved.serverId;
+
+  // Check secure context
+  function checkSecure() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      document.getElementById('origin-hint').textContent = location.origin;
+      document.getElementById('insecure-warn').style.display = 'block';
       return false;
     }
     return true;
   }
-</script>
+  checkSecure();
 
-<script src="/socket.io/socket.io.js"></script>
+  // Only allow numbers in ID field
+  inputId.addEventListener('input', () => {
+    inputId.value = inputId.value.replace(/\D/g, '').substring(0, 6);
+  });
 
-<script>
-  if (!wrongProto && !wrongPort) {
-    // Checa contexto seguro ao carregar
-    checkSecureContext();
+  function addLog(msg) {
+    const d = document.createElement('div');
+    d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    logEl.prepend(d);
+  }
 
-    var socket = io();
-    var localStream = null;
-    var peers = {};
-    var myQuestId = 1;
-    var streaming = false;
-    var iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+  // ── CONNECT ───────────────────────────────────────────
+  connectBtn.addEventListener('click', async () => {
+    if (!checkSecure()) return;
 
-    function addLog(msg) {
-      var el = document.getElementById('log');
-      var d = document.createElement('div');
-      d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
-      el.appendChild(d); el.scrollTop = el.scrollHeight;
-    }
-    function setStatus(msg, c) {
-      var m = { green:'green', yellow:'yellow', red:'red' };
-      document.getElementById('status').innerHTML = '<span class="dot '+(m[c]||'')+'"></span>'+msg;
-    }
+    myName = inputName.value.trim();
+    myId   = inputId.value.trim();
 
-    document.getElementById('startBtn').addEventListener('click', async function() {
-      if (streaming) return;
+    if (!myName) { showError('Digite seu nome'); return; }
+    if (myId.length !== 6) { showError('O ID deve ter 6 dígitos'); return; }
 
-      // Re-checa contexto seguro no clique
-      if (!checkSecureContext()) {
-        addLog('ERRO: getDisplayMedia não disponível — siga as instruções acima.');
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Verificando...';
+    setupError.style.display = 'none';
+
+    try {
+      // Find server by serverId field
+      const q    = query(collection(db, 'servers'), where('serverId', '==', myId));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        showError('Server não encontrado. Verifique o ID.');
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Conectar e Transmitir';
         return;
       }
 
-      myQuestId = parseInt(document.getElementById('qs').value);
-      document.getElementById('startBtn').disabled = true;
-      setStatus('Capturando tela...', 'yellow');
-      addLog('Solicitando captura de tela...');
+      serverDocId = snap.docs[0].id;
+      serverData  = snap.docs[0].data();
 
+      // Check if server is active
+      if (!serverData.active) {
+        showError('Este server está desativado.');
+        connectBtn.disabled = false;
+        connectBtn.textContent = 'Conectar e Transmitir';
+        return;
+      }
+
+      // Save config
+      localStorage.setItem('qm-sender', JSON.stringify({ name: myName, serverId: myId }));
+
+      // Capture screen
+      connectBtn.textContent = 'Capturando tela...';
+      localStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      });
+
+      localVideo.srcObject = localStream;
+      localVideo.style.display = 'block';
+
+      // Register sender in Firestore
+      const senderRef = doc(collection(db, 'servers', serverDocId, 'senders'));
+      senderDocId = senderRef.id;
+      await setDoc(senderRef, {
+        questName:  myName,
+        connected:  true,
+        lastSeen:   serverTimestamp(),
+        createdAt:  serverTimestamp()
+      });
+
+      // Go live
+      setupScreen.style.display = 'none';
+      liveScreen.style.display  = 'flex';
+      document.getElementById('info-server').textContent = serverData.name;
+      document.getElementById('info-id').textContent     = myId;
+      document.getElementById('info-name').textContent   = myName;
+
+      addLog('Conectado ao server "' + serverData.name + '"');
+
+      // Listen for signaling from receivers
+      listenForReceivers();
+
+      // Handle screen share stop
+      localStream.getVideoTracks()[0].onended = () => stopStreaming();
+
+    } catch(e) {
+      showError('Erro: ' + e.message);
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Conectar e Transmitir';
+    }
+  });
+
+  // ── LISTEN FOR RECEIVER SIGNALS ───────────────────────
+  function listenForReceivers() {
+    const sigRef = collection(db, 'servers', serverDocId, 'senders', senderDocId, 'signaling');
+    unsubSignal = onSnapshot(sigRef, async (snap) => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' || change.type === 'modified') {
+          const data       = change.doc.data();
+          const receiverId = change.doc.id;
+
+          // New receiver wants to connect → send offer
+          if (data.type === 'request' && !peers[receiverId]) {
+            addLog('Receiver conectando: ' + receiverId.substring(0,8));
+            await createOfferForReceiver(receiverId);
+          }
+          // Got answer from receiver
+          if (data.type === 'answer' && peers[receiverId]) {
+            const pc = peers[receiverId];
+            if (pc.signalingState === 'have-local-offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+              addLog('Answer aceita de ' + receiverId.substring(0,8));
+            }
+          }
+          // Got ICE candidate from receiver
+          if (data.type === 'ice-receiver' && peers[receiverId]) {
+            try {
+              await peers[receiverId].addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch(e) {}
+          }
+        }
+        if (change.type === 'removed') {
+          const receiverId = change.doc.id;
+          if (peers[receiverId]) {
+            peers[receiverId].close();
+            delete peers[receiverId];
+            renderPeers();
+          }
+        }
+      }
+    });
+  }
+
+  async function createOfferForReceiver(receiverId) {
+    const pc = new RTCPeerConnection(iceConfig);
+    peers[receiverId] = pc;
+    renderPeers();
+
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    pc.onicecandidate = async ({ candidate }) => {
+      if (candidate) {
+        await setDoc(
+          doc(db, 'servers', serverDocId, 'senders', senderDocId, 'signaling', receiverId),
+          { type: 'ice-sender', candidate: candidate.toJSON() },
+          { merge: true }
+        );
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      addLog(receiverId.substring(0,8) + ': ' + pc.connectionState);
+      renderPeers();
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    await setDoc(
+      doc(db, 'servers', serverDocId, 'senders', senderDocId, 'signaling', receiverId),
+      { type: 'offer', offer: { type: offer.type, sdp: offer.sdp } },
+      { merge: true }
+    );
+    addLog('Offer enviada para ' + receiverId.substring(0,8));
+  }
+
+  function renderPeers() {
+    const ids = Object.keys(peers);
+    if (ids.length === 0) {
+      peersList.innerHTML = '<div class="no-peers">Aguardando receiver...</div>';
+      return;
+    }
+    peersList.innerHTML = ids.map(id => {
+      const state = peers[id].connectionState;
+      const cls   = ['connected','completed'].includes(state) ? 'connected'
+                  : state === 'connecting' ? 'connecting' : 'failed';
+      return `<div class="peer-row ${cls === 'connected' ? 'connected' : ''}">
+        <span class="peer-id">receiver · ${id.substring(0,10)}</span>
+        <span class="peer-state ${cls}">${state}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── STOP ──────────────────────────────────────────────
+  stopBtn.addEventListener('click', stopStreaming);
+
+  async function stopStreaming() {
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    Object.values(peers).forEach(pc => pc.close());
+    peers = {};
+    if (unsubSignal) { unsubSignal(); unsubSignal = null; }
+
+    if (serverDocId && senderDocId) {
       try {
-        localStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: { ideal: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true
+        await updateDoc(doc(db, 'servers', serverDocId, 'senders', senderDocId), {
+          connected: false, lastSeen: serverTimestamp()
         });
-        var vid = document.getElementById('vid');
-        vid.srcObject = localStream; vid.style.display = 'block';
-        streaming = true;
-        // Esconde aviso se estava visível
-        document.getElementById('insecure-warn').style.display = 'none';
-        socket.emit('register-sender', { questId: myQuestId });
-        setStatus('Transmitindo como Quest ' + myQuestId, 'green');
-        addLog('Registrado como Quest ' + myQuestId);
-        localStream.getVideoTracks()[0].onended = function() {
-          setStatus('Transmissão encerrada', 'red');
-          addLog('Compartilhamento encerrado');
-          streaming = false;
-          document.getElementById('startBtn').disabled = false;
-          vid.style.display = 'none';
-        };
-      } catch(e) {
-        setStatus('Erro ao capturar tela', 'red');
-        addLog('Erro: ' + e.message);
-        document.getElementById('startBtn').disabled = false;
-        checkSecureContext();
-      }
-    });
+      } catch(e) {}
+    }
 
-    socket.on('request-offer', async function(d) {
-      if (!localStream) return;
-      addLog('Offer solicitada por ' + d.viewerSocketId.substring(0,8));
-      var pc = new RTCPeerConnection(iceConfig);
-      peers[d.viewerSocketId] = pc;
-      localStream.getTracks().forEach(function(t) { pc.addTrack(t, localStream); });
-      pc.onicecandidate = function(e) {
-        if (e.candidate) socket.emit('ice-candidate-sender', { questId: myQuestId, candidate: e.candidate, targetViewer: d.viewerSocketId });
-      };
-      pc.onconnectionstatechange = function() { addLog('Peer: ' + pc.connectionState); };
-      var offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('webrtc-offer', { questId: myQuestId, offer: offer, targetViewer: d.viewerSocketId });
-      addLog('Offer enviada');
-    });
+    liveScreen.style.display  = 'none';
+    setupScreen.style.display = 'flex';
+    localVideo.style.display  = 'none';
+    localVideo.srcObject      = null;
+    connectBtn.disabled       = false;
+    connectBtn.textContent    = 'Conectar e Transmitir';
+    addLog('Transmissão encerrada');
+  }
 
-    socket.on('webrtc-answer', async function(d) {
-      var pc = peers[d.viewerSocketId];
-      if (pc && pc.signalingState === 'have-local-offer') {
-        await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
-        addLog('Answer aceita');
-      }
-    });
-
-    socket.on('ice-candidate-viewer', async function(d) {
-      var pc = peers[d.viewerSocketId];
-      if (pc && d.candidate) { try { await pc.addIceCandidate(new RTCIceCandidate(d.candidate)); } catch(e) {} }
-    });
-
-    socket.on('viewer-disconnected', function(d) {
-      if (peers[d.viewerSocketId]) { peers[d.viewerSocketId].close(); delete peers[d.viewerSocketId]; }
-    });
-
-    socket.on('viewer-count', function(d) {
-      document.getElementById('vc').textContent = 'Viewers conectados: ' + d.count;
-    });
+  function showError(msg) {
+    setupError.textContent     = msg;
+    setupError.style.display   = 'block';
   }
 </script>
 </body>
